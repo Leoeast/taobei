@@ -1,0 +1,96 @@
+- type: Backend
+  id: API-POST-RequestCode
+  route: POST /api/auth/request-code
+  description: 处理登录或注册流程中的验证码请求。
+  input:
+    type: JSON
+    body:
+      phoneNumber: string
+      purpose: string # login | register
+  output:
+    success:
+      statusCode: 200
+      body: { message: "Code generated." }
+    error:
+      - statusCode: 400
+        body: { error: "Invalid phone format." }
+  dependencies:
+    - DB-CreateVerificationCode
+  acceptanceCriteria:
+    - 当手机号格式合法时，返回 200 并生成 6 位验证码。
+    - 生成的验证码在服务端控制台打印，供演示与调试。
+    - purpose 字段为 login 或 register；非法值返回 400。
+  changeLog:
+    - date: "2025-10-13"
+      description: "初始创建。"
+    - date: "2025-10-13"
+      description: "补充：验证码生成后在服务端控制台打印。"
+
+- type: Backend
+  id: API-POST-Login
+  route: POST /api/auth/login
+  description: 使用手机号和验证码完成登录。
+  input:
+    type: JSON
+    body:
+      phoneNumber: string
+      verificationCode: string
+  output:
+    success:
+      statusCode: 200
+      body: { userId: "uuid", token: "jwt" }
+    error:
+      - statusCode: 400
+        body: { error: "Invalid input or format." }
+      - statusCode: 404
+        body: { error: "Phone not registered." }
+      - statusCode: 401
+        body: { error: "Verification code invalid." }
+  dependencies:
+    - DB-FindUserByPhone
+    - DB-VerifyCode
+  acceptanceCriteria:
+    - 未注册手机号登录时返回 404，并提示“该手机号未注册”。
+    - 验证码错误时返回 401，并提示“验证码错误”。
+    - 成功时返回 200，并包含用户标识和令牌。
+  changeLog:
+    - date: "2025-10-13"
+      description: "初始创建。"
+
+- type: Backend
+  id: API-POST-Register
+  route: POST /api/auth/register
+  description: 使用手机号和验证码完成注册，成功后自动登录。
+  input:
+    type: JSON
+    body:
+      phoneNumber: string
+      verificationCode: string
+      agreeAgreement: boolean
+  output:
+    success:
+      statusCode: 201
+      body: { userId: "uuid", token: "jwt" }
+    success_existing:
+      statusCode: 200
+      body: { userId: "uuid", token: "jwt", existingUser: true }
+    error:
+      - statusCode: 400
+        body: { error: "Invalid input or format." }
+      - statusCode: 401
+        body: { error: "Verification code invalid." }
+      - statusCode: 412
+        body: { error: "Agreement not accepted." }
+  dependencies:
+    - DB-FindUserByPhone
+    - DB-VerifyCode
+    - DB-CreateUser
+  acceptanceCriteria:
+    - 未勾选协议时返回 412，并提示按钮不可点击。
+    - 已注册手机号注册时返回 200，并直接完成登录（existingUser: true）。
+    - 成功创建新用户时返回 201，并自动登录。
+  changeLog:
+    - date: "2025-10-13"
+      description: "初始创建。"
+    - date: "2025-10-13"
+      description: "调整：已注册手机号注册改为 200 并返回令牌；新增 existingUser 标记。"

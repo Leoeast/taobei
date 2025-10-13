@@ -1,0 +1,50 @@
+- type: Frontend
+  id: UI-LoginForm
+  description: 登录页面组件，包含手机号、验证码输入和获取验证码、登录按钮。
+  properties:
+    - name: onLoginSuccess
+      type: function
+      description: 登录成功后的回调函数。
+  state:
+    - phoneNumber
+    - verificationCode
+    - isLoading
+    - error
+    - countdown
+  dependencies:
+    - API-POST-RequestCode
+    - API-POST-Login
+  acceptanceCriteria:
+    - 组件渲染手机号、验证码输入框、获取验证码按钮和“登录”按钮。
+    - 手机号格式无效时，禁用“获取验证码”并显示提示。
+    - 成功请求验证码后开始 60 秒倒计时并禁用按钮。
+    - 点击“登录”调用 API-POST-Login，按场景显示提示与跳转首页。
+  changeLog:
+    - date: "2025-10-13"
+      description: "初始创建。"
+
+- type: Frontend
+  id: UI-RegisterForm
+  description: 注册页面组件，包含手机号、验证码输入、获取验证码、协议勾选和注册按钮。
+  properties:
+    - name: onRegisterSuccess
+      type: function
+      description: 注册成功后的回调函数。
+  state:
+    - phoneNumber
+    - verificationCode
+    - agreeAgreement
+    - isLoading
+    - error
+    - countdown
+  dependencies:
+    - API-POST-RequestCode
+    - API-POST-Register
+  acceptanceCriteria:
+    - 组件渲染手机号、验证码输入框、获取验证码按钮、协议勾选和“注册”按钮。
+    - 未勾选协议时，注册按钮为不可点击状态；勾选后可点击。
+    - 成功请求验证码后开始 60 秒倒计时并禁用按钮。
+    - 已注册手机号注册时提示并直接登录，成功后跳转首页。
+  changeLog:
+    - date: "2025-10-13"
+      description: "初始创建。"
