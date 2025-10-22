@@ -1,5 +1,6 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
 // 数据库配置
 const dbConfig = {
@@ -10,6 +11,10 @@ const dbConfig = {
 
 const env = process.env.NODE_ENV || 'development';
 const dbPath = dbConfig[env];
+const dataDir = path.dirname(dbPath);
+if (env !== 'test' && !fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
 
 // 创建数据库连接
 const db = new Database(dbPath);

@@ -162,8 +162,46 @@ describe('Authentication API', () => {
         });
 
       expect(response.status).toBe(201);
-      expect(response.body).toHaveProperty('userId');
-      expect(response.body).toHaveProperty('token');
+      const stmt = db.prepare("SELECT used FROM verification_codes WHERE phone = ? AND purpose = 'register'");
+      const record = stmt.get('13800138003');
+      expect(record.used).toBe(1);
+    });
+
+    it('过期验证码应无法使用', async () => {
+      const expired = new Date(Date.now() - 60 * 1000).toISOString();
+      const insertCode = db.prepare('INSERT INTO verification_codes (phone, code, purpose, expires_at, used) VALUES (?, ?, ?, ?, ?)');
+      insertCode.run('13800138004', '654321', 'register', expired, 0);
+
+      const response = await request(app)
+        .post('/api/auth/register')
+        .send({
+          phoneNumber: '13800138004',
+          verificationCode: '654321',
+          agreeAgreement: true
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.error).toBe('Verification code invalid.');
+    });
+
+    it('请求验证码应清除旧记录并仅保留最新验证码', async () => {
+      // 预置两条旧验证码
+      const insertCode = db.prepare('INSERT INTO verification_codes (phone, code, purpose, expires_at, used) VALUES (?, ?, ?, ?, ?)');
+      const future = new Date(Date.now() + 60 * 1000).toISOString();
+      insertCode.run('13800138005', '111111', 'register', future, 0);
+      insertCode.run('13800138005', '222222', 'register', future, 0);
+
+      const response = await request(app)
+        .post('/api/auth/request-code')
+        .send({
+          phoneNumber: '13800138005',
+          purpose: 'register'
+        });
+
+      expect(response.status).toBe(200);
+      const countStmt = db.prepare('SELECT COUNT(*) as cnt FROM verification_codes WHERE phone = ?');
+      const { cnt } = countStmt.get('13800138005');
+      expect(cnt).toBe(1);
     });
   });
 });
