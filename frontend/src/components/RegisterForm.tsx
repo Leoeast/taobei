@@ -11,6 +11,8 @@ interface RegisterFormProps {
 }
 
 const RegisterForm: FC<RegisterFormProps> = ({ onRegisterSuccess, onNavigateToLogin, onNavigateToReset }) => {
+  // 前端伪功能默认验证码（当后端未返回 debugCode 时作为兜底，仅用于演示环境）
+  const DEV_SMS_CODE = '123456'
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('') // 保留以支持后端注册（新用户）
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -82,6 +84,23 @@ const RegisterForm: FC<RegisterFormProps> = ({ onRegisterSuccess, onNavigateToLo
   // 注册：调用后端 /api/auth/register（同意协议时才可提交）
   const handleRegister = async () => {
     if (!canRegister) return
+    // 前置验证码校验（伪功能体验）：
+    // 若后端在请求验证码时返回了 debugCode（仅 PSEUDO_SMS=true 环境），则要求用户输入与 debugCode 一致；
+    // 若后端未返回 debugCode，则使用 DEV_SMS_CODE 作为兜底，确保演示模式下流程真实可控。
+    const inputCode = verificationCode.trim()
+    if (devCode) {
+      if (inputCode !== String(devCode)) {
+        setMessage('验证码错误')
+        try { alert('注册失败：验证码错误') } catch {}
+        return
+      }
+    } else {
+      if (inputCode !== DEV_SMS_CODE) {
+        setMessage('验证码错误')
+        try { alert('注册失败：验证码错误') } catch {}
+        return
+      }
+    }
     // 伪功能模式下也继续调用后端注册接口，验证码校验由后端控制（PSEUDO_SMS=true 时跳过）
     try {
       const username = `tb_${phone.slice(-4) || 'user'}`

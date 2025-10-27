@@ -11,7 +11,8 @@ export default defineConfig({
     cors: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        // 与后端 Express 默认端口保持一致（backend/src/app.js 默认 3000）
+        target: 'http://localhost:3000',
         changeOrigin: true,
       }
     }
