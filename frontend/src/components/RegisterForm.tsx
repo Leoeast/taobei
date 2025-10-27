@@ -15,6 +15,8 @@ const RegisterForm: FC<RegisterFormProps> = ({ onRegisterSuccess, onNavigateToLo
   const DEV_SMS_CODE = '123456'
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('') // 保留以支持后端注册（新用户）
+  const [passwordTouched, setPasswordTouched] = useState(false) // 首次点击/聚焦后再显示密码要求
+  const [passwordFocused, setPasswordFocused] = useState(false) // 控制在失焦且已符合格式时隐藏提示
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -36,7 +38,10 @@ const RegisterForm: FC<RegisterFormProps> = ({ onRegisterSuccess, onNavigateToLo
 
   const isPhoneValid = /^1[3-9]\d{9}$/.test(phone)
   // 获取验证码：手机号合法且填了任意图形验证码
-  const canGetCode = isPhoneValid && countdown === 0 && captcha.trim().length > 0
+  // 图形验证码题面 13 + 78 = ? 的正确答案（演示环境统一为 91）
+  const DEV_CAPTCHA_ANSWER = '91'
+  const isCaptchaValid = captcha.trim() === DEV_CAPTCHA_ANSWER
+  const canGetCode = isPhoneValid && countdown === 0 && isCaptchaValid
   // 注册时校验短信验证码、设置密码（>=6 且两次一致）与是否同意协议
   const isPasswordValid = password.trim().length >= 6
   const isConfirmOk = isPasswordValid && confirmPassword === password
@@ -46,6 +51,10 @@ const RegisterForm: FC<RegisterFormProps> = ({ onRegisterSuccess, onNavigateToLo
   const handleGetCode = async () => {
     if (!isPhoneValid) {
       setMessage('请输入正确的手机号码')
+      return
+    }
+    if (!isCaptchaValid) {
+      setMessage(`图形验证码错误，请输入 ${DEV_CAPTCHA_ANSWER}`)
       return
     }
     if (!canGetCode) return
@@ -66,18 +75,22 @@ const RegisterForm: FC<RegisterFormProps> = ({ onRegisterSuccess, onNavigateToLo
       } else {
         if (res.status === 429) {
           setMessage('请求过于频繁，请稍后再试')
+        } else if (res.status === 400) {
+          setMessage('输入无效，请检查手机号和用途')
+        } else if (res.status === 404) {
+          setMessage('接口不存在：请确认后端服务或代理配置')
         } else {
           const err = data
           if (err && (err.error || err.message)) {
             setMessage(String(err.error || err.message))
           } else {
-            setMessage('发送验证码失败')
+            setMessage('发送验证码失败，请稍后重试')
           }
           console.warn('request-code(register) error', res.status, err)
         }
       }
     } catch (e) {
-      setMessage('网络错误，请稍后重试')
+      setMessage('网络错误：后端未启动或代理未配置，请稍后重试')
     }
   }
 
@@ -242,7 +255,9 @@ const RegisterForm: FC<RegisterFormProps> = ({ onRegisterSuccess, onNavigateToLo
               type={showPassword ? 'text' : 'password'}
               placeholder="请输入密码"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onFocus={() => { setPasswordFocused(true); setPasswordTouched(true) }}
+              onBlur={() => setPasswordFocused(false)}
+              onChange={(e) => { setPassword(e.target.value); if (!passwordTouched) setPasswordTouched(true) }}
               className="form-input"
             />
             <button
@@ -255,6 +270,16 @@ const RegisterForm: FC<RegisterFormProps> = ({ onRegisterSuccess, onNavigateToLo
               {showPassword ? '隐藏密码' : '显示密码'}
             </button>
           </div>
+          {/* 密码长度提示：
+              - 首次点击/聚焦后显示
+              - 若用户离开输入框（失焦）且密码已符合格式，则隐藏
+              - 若不符合格式则保持显示
+          */}
+          {passwordTouched && (passwordFocused || !isPasswordValid) && (
+            <div className={`password-tip ${isPasswordValid ? 'ok' : 'warn'}`}>
+              密码至少需要6位
+            </div>
+          )}
         </div>
         <div className="input-group">
           <label htmlFor="reg-password2">确认密码</label>

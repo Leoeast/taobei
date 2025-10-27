@@ -252,3 +252,15 @@
   font-size: 12px;
   color: #999;
 }
+
+/* 密码长度实时提示（不足红色，足够绿色） */
+.password-tip {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.password-tip.warn {
+  color: #d93025; /* 红色：长度不足 */
+}
+.password-tip.ok {
+  color: #2d7a2d; /* 绿色：长度足够 */
+}
