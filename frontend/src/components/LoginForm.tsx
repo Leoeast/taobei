@@ -60,12 +60,20 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onNavigateToRegis
   };
 
   // 获取验证码：调用后端 /api/auth/request-code
+  const DEV_CAPTCHA_ANSWER = '91'
+  const isCaptchaValid = captcha.trim() === DEV_CAPTCHA_ANSWER
+
   const handleGetCode = async () => {
     setError('');
     setInfo('');
     setDevCode('');
     if (!isValidPhoneNumber(phoneNumber)) {
       setError('请输入正确的手机号码');
+      return;
+    }
+    // 为与演示逻辑保持一致，要求图形验证码正确后才允许获取短信验证码
+    if (!isCaptchaValid) {
+      setError(`图形验证码错误，请输入 ${DEV_CAPTCHA_ANSWER}`);
       return;
     }
     if (countdown > 0 || isLoading) return;
@@ -88,7 +96,9 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onNavigateToRegis
         if (res.status === 429) {
           setError('请求过于频繁，请稍后再试');
         } else if (res.status === 400) {
-          setError('请输入正确的手机号码');
+          setError('输入无效，请检查手机号和用途');
+        } else if (res.status === 404) {
+          setError('接口不存在：请确认后端服务或代理配置');
         } else {
           const err = data;
           if (err && (err.error || err.message)) {
@@ -100,7 +110,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onNavigateToRegis
         }
       }
     } catch (e) {
-      setError('网络错误，请稍后重试');
+      setError('网络错误：后端未启动或代理未配置，请稍后重试');
     } finally {
       setIsLoading(false);
     }
