@@ -3,6 +3,19 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+  // 允许局域网其他主机访问本地开发服务器
+  server: {
+    host: true,      // 监听 0.0.0.0，使同一局域网其他设备可访问
+    port: 5173,      // 固定端口，便于开放防火墙与共享地址
+    strictPort: true,
+    cors: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      }
+    }
+  },
   test: {
     globals: true,
     environment: 'jsdom',

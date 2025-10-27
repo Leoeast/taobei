@@ -86,3 +86,118 @@
                 Then 系统在数据库中创建新用户
                 And 页面提示“注册成功”
                 And 用户成功登录并自动跳转到首页
+
+3.  数据库与数据持久化
+    3.1 数据库概述
+        - 系统使用 SQLite（文件位置：backend/data/app.db），通过 better-sqlite3 接入。
+        - 数据持久化用于保存用户信息（用户名、手机号、密码哈希等）以及短信验证码记录。
+
+    3.2 数据模型
+        - users 表（用户信息）
+            - id INTEGER PRIMARY KEY AUTOINCREMENT
+            - username TEXT NOT NULL
+            - phone TEXT NOT NULL UNIQUE
+            - password_hash TEXT NOT NULL
+            - created_at TEXT NOT NULL  // ISO 时间戳
+            - updated_at TEXT NOT NULL  // ISO 时间戳
+        - sms_codes 表（短信验证码记录）
+            - id INTEGER PRIMARY KEY AUTOINCREMENT
+            - phone TEXT NOT NULL
+            - code TEXT NOT NULL        // 6位数字
+            - expires_at TEXT NOT NULL  // 生成后 60 秒
+            - created_at TEXT NOT NULL
+            - used INTEGER NOT NULL DEFAULT 0  // 0 未使用；1 已使用
+        - 索引与约束：
+            - users(phone) 唯一索引，保证手机号唯一
+            - sms_codes(phone, created_at) 普通索引，便于查询最近验证码
+
+    3.3 注册接口与流程
+        - API：POST /api/auth/register
+        - 请求体：{ username, phone, password, smsCode }
+        - 规则：
+            - 校验手机号格式；校验 smsCode 存在且未过期；密码长度 >= 6
+            - 若手机号已注册：返回提示“该手机号已注册，将直接为您登录”，并视为登录成功，页面弹出“登陆成功！”并跳转首页
+            - 若未注册：创建用户（存储 password_hash；严禁明文密码），返回成功并登录，页面提示“注册成功”，随后弹出“登陆成功！”并跳转首页
+        - 数据落库：
+            - users 插入新记录（username/phone/password_hash/created_at/updated_at）
+            - sms_codes 标记为 used=1
+
+    3.4 登录接口与流程
+        - API：POST /api/auth/login
+        - 支持两种方式：
+            - 短信登录：{ phone, smsCode }
+                - 校验手机号存在；smsCode 正确且未过期
+                - 成功：页面弹出“登陆成功！” 并跳转到首页
+            - 密码登录：{ accountOrPhone, password }
+                - 校验图形验证码（若前端启用）
+                - 验证密码（与 users.password_hash 对比，使用安全哈希比对）
+                - 成功：页面弹出“登陆成功！” 并跳转到首页
+        - 失败提示规则：
+            - 未注册手机号：提示“该手机号未注册，请先完成注册”
+            - 验证码错误：提示“验证码错误”
+            - 密码错误：提示“密码错误”
+        - 会话：
+            - 返回 token（可为模拟值），前端保存于内存或 localStorage（可选）
+
+    3.5 安全要求
+        - 密码必须以安全哈希存储（推荐 bcrypt/argon2），严禁明文
+        - 验证码发送频率限制：每手机号 60 秒内最多发送 1 次
+        - 验证码有效期 60 秒，过期不可用
+        - 输入校验：手机号/用户名/密码长度与字符集
+        - CORS：仅允许必要来源；生产环境需更严格
+        - 日志：不记录敏感明文（密码、完整验证码）
+
+    3.6 验收标准
+        - 当用户注册成功后，数据库 users 存在该用户记录，password_hash 不为空且非明文
+        - 当发送验证码后，sms_codes 存在记录且 expires_at 在生成 60 秒后
+        - 当登录成功时，页面弹出“登陆成功！”并跳转首页
+        - 使用已注册手机号重复注册时，系统不创建新用户，直接登录并弹出“登陆成功！”
+        - 使用错误短信码或错误密码登录时，页面给出相应错误提示
+
+    3.7 错误提示与日志（新增需求）
+        - 前端在调用 /api/auth/register、/api/auth/login、/api/auth/request-code 发生失败时：
+            - 若后端响应体包含 error 或 message 字段，优先显示该具体错误信息给用户；
+            - 若后端未提供具体错误文案，则显示通用提示（如“注册失败，请稍后重试”“登录失败，请稍后重试”“验证码发送失败，请稍后重试”）；
+            - 在浏览器控制台输出状态码与后端返回体，便于排查（console.warn，并标注来源与接口名）。
+        - 示例：
+            - /api/auth/register 返回 409，body: { error: "用户名已存在" }，前端显示“用户名已存在”；
+            - /api/auth/request-code 返回 429 时仍显示“请求过于频繁，请稍后再试”（保留特定状态码的专用文案）。
+
+3.8 临时伪功能配置（更新）
+        - 目标：仅将“验证码校验”作为伪功能，验证码默认视为正确；“注册/登录”必须调用后端接口完成真实业务（含落库、鉴权）。
+        - 行为说明：
+            - 获取验证码：可继续调用 /api/auth/request-code 以维持用户体验（倒计时、限频），但不依赖真实短信发送；
+            - 登录/注册：前端仍调用 /api/auth/login 与 /api/auth/register；当伪功能开启时，后端跳过验证码校验（或固定接受），从而验证码输入值不影响结果，但需传递 verificationCode 字段且非空；
+            - 密码登录逻辑保持真实接口调用与校验不变。
+        - 开关与实现：
+            - 后端通过环境变量 PSEUDO_SMS=true 控制伪功能开关（默认为 false）；开启后，/api/auth/login 与 /api/auth/register 跳过验证码校验；
+            - 前端不再模拟注册/登录成功，仅负责正常调用接口与展示后端返回；
+            - 建议将前端的获取验证码按钮继续调用后端，以保持倒计时和频率限制（429）提示。
+        - 验收提醒：伪功能模式下仍会落库（注册）、返回 token（登录）；如需恢复真实短信校验，关闭 PSEUDO_SMS 并按正常流程请求验证码与使用正确的验证码值。
+
+4.  忘记密码（新增）
+    4.1 场景描述
+        4.1.1 用户在登录界面点击“忘记密码”，进入“重置密码”界面。
+        4.1.2 界面包含手机号输入框、短信验证码输入框、获取验证码按钮、新密码输入框（至少6位）、以及“重置密码”按钮。
+
+    4.2 获取验证码（用途=reset）
+        4.2.1 校验手机号格式；若格式无效则不发送验证码并提示“请输入正确的手机号码”。
+        4.2.2 成功请求时：服务器生成6位验证码、打印在控制台（便于调试）、写入数据库（purpose='reset'，60秒有效），并对同一手机号+用途施加60秒限频。
+
+    4.3 重置密码流程
+        4.3.1 请求体：{ phoneNumber, verificationCode, newPassword }
+        4.3.2 规则：
+            - 校验手机号存在于系统；不存在则返回 404: Phone not registered.
+            - 校验 newPassword 长度 >= 6；不满足则返回 400: Invalid input or format.
+            - 校验 verificationCode（purpose='reset'）有效且未过期；错误或过期返回 401: Verification code invalid.
+            - 校验通过后，将用户密码更新为 BCrypt 哈希（严禁明文），并标记验证码 used=1。
+        4.3.3 成功响应：返回 200，{ message: 'Password updated.' }（不自动登录）。
+
+    4.4 临时伪功能（与 3.8 一致）
+        - 当 PSEUDO_SMS=true 时，后端跳过验证码有效性校验，但仍要求传递非空的 verificationCode 字段并执行正常流程（写库、限频、used 标记）。
+        - 获取验证码仍通过 /api/auth/request-code purpose='reset'，以维持倒计时与频率限制体验。
+
+    4.5 验收标准
+        - 当用户使用正确的短信验证码重置密码后，数据库 users.password_hash 更新为新的哈希值，且 verification_codes.used=1。
+        - 当用户使用新密码进行密码登录时，登录成功并返回 token。
+        - 对未注册手机号或错误/过期验证码进行重置时，返回对应错误并不更新密码。
