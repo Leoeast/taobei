@@ -225,6 +225,13 @@ const RegisterForm: FC<RegisterFormProps> = ({ onRegisterSuccess, onNavigateToLo
             <button type="button" onClick={() => setVerificationCode(devCode)} style={{ marginLeft: 8, fontSize: 12 }}>一键填充</button>
           </div>
         )}
+        {/* 演示环境兜底：后端未返回 debugCode 时，展示默认验证码 123456 以便演示 */}
+        {!devCode && countdown > 0 && (
+          <div style={{ marginBottom: 12, fontSize: 12, color: '#666' }}>
+            演示默认验证码: <strong style={{ color: '#ff6600' }}>{DEV_SMS_CODE}</strong>
+            <button type="button" onClick={() => setVerificationCode(DEV_SMS_CODE)} style={{ marginLeft: 8, fontSize: 12 }}>一键填充</button>
+          </div>
+        )}
 
         {/* 设置登录密码 */}
         <div className="input-group">

@@ -6,6 +6,8 @@ const repo = require('../data/repository');
 
 // 短信验证码伪功能开关：当为 true 时，验证码默认视为有效，注册/登录仍调用后端接口
 const USE_PSEUDO_SMS = process.env.PSEUDO_SMS === 'true';
+// 开发环境调试开关：非生产环境下对请求验证码接口总是返回 debugCode，便于前端工作台展示
+const INCLUDE_DEBUG_CODE = (process.env.NODE_ENV || 'development') !== 'production';
 
 // 手机号格式验证
 function isValidPhoneNumber(phone) {
@@ -74,10 +76,10 @@ router.post('/request-code', (req, res) => {
     // 在控制台打印验证码（用于演示和调试）
     console.log(`验证码已生成 - 手机号: ${phoneNumber}, 验证码: ${code}, 用途: ${purpose}`);
 
-    // 工作台调试：在伪功能模式下，返回 debugCode 便于前端工作台展示实时验证码
+    // 工作台调试：在伪功能模式或开发环境下返回 debugCode，便于前端展示实时验证码
     // 保持原有 message 字段不变，测试仍按 message 断言；新增字段不影响测试
     const responsePayload = { message: 'Code generated.' };
-    if (USE_PSEUDO_SMS) {
+    if (USE_PSEUDO_SMS || INCLUDE_DEBUG_CODE) {
       responsePayload.debugCode = code;
     }
     res.status(200).json(responsePayload);

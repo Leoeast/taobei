@@ -264,6 +264,13 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess, onNavigateToRegis
                     <button type="button" className="get-code-btn" onClick={() => setVerificationCode(devCode)} style={{ marginLeft: 8, padding: '4px 8px' }}>一键填充</button>
                   </div>
                 )}
+                {/* 演示环境兜底：后端未返回 debugCode 时，展示默认验证码 123456 以便演示 */}
+                {!error && !devCode && countdown > 0 && (
+                  <div className="info-message" style={{ marginTop: 6 }}>
+                    演示默认验证码: <strong style={{ color: '#ff6600' }}>{DEV_SMS_CODE}</strong>
+                    <button type="button" className="get-code-btn" onClick={() => setVerificationCode(DEV_SMS_CODE)} style={{ marginLeft: 8, padding: '4px 8px' }}>一键填充</button>
+                  </div>
+                )}
 
                 <button type="button" className="login-btn" onClick={handleLogin} disabled={isLoading || !phoneNumber || !verificationCode}>{isLoading ? '登录中...' : '登录'}</button>
 
